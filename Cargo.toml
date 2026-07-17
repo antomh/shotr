@@ -8,7 +8,8 @@ license = "AGPL-3.0-or-later"
 nix = {
 	version = "0.31.3",
 	features = [
-		"fs"
+		"fs",
+		"process"
 	]
 }
 which = "8.0.5"
