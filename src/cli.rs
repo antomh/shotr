@@ -1,5 +1,49 @@
-use std::{env, path::{Path, PathBuf}};
+use std::{env, fmt, path::{Path, PathBuf}, error::Error};
 use nix::NixPath;
+
+#[derive(Debug, PartialEq)]
+pub enum CliError {
+	// Parsing errors.
+	EmptyProgname,
+	NotEnoughtArgs,
+	CallHelp,
+	UnknownFlag(String),
+	// Validating errors.
+	EmptyExecutable,
+	ExecutableNotFound(which::Error),
+}
+
+impl fmt::Display for CliError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			CliError::EmptyProgname => write!(f, "unable to get program name"),
+			CliError::NotEnoughtArgs => write!(f, "not enought input arguments"),
+			CliError::CallHelp => write!(f, "get help flag"),
+			CliError::UnknownFlag(flag) => write!(f, "unknown argument: \'{}\'", flag),
+			CliError::EmptyExecutable => write!(f, "empty program name"),
+			CliError::ExecutableNotFound(e) => write!(f, "executable not found: {}", e),
+		}
+	}
+}
+
+impl Error for CliError {
+	fn source(&self) -> Option<&(dyn Error + 'static)> {
+		match self {
+			CliError::EmptyProgname => None,
+			CliError::NotEnoughtArgs => None,
+			CliError::CallHelp => None,
+			CliError::UnknownFlag(_flag) => None,
+			CliError::EmptyExecutable => None,
+			CliError::ExecutableNotFound(e) => Some(e),
+		}
+	}
+}
+
+impl From<which::Error> for CliError {
+	fn from(e: which::Error) -> Self {
+		CliError::ExecutableNotFound(e)
+	}
+}
 
 pub struct CliArgs {
 	progname: String,
@@ -7,7 +51,6 @@ pub struct CliArgs {
 	child_args: Vec<String>,
 	only_summary: bool,
 	follow_forks: bool,
-	help: bool,
 }
 
 impl CliArgs {
@@ -19,16 +62,15 @@ impl CliArgs {
 			child_args: Vec::new(),
 			only_summary: false,
 			follow_forks: false,
-			help: false,
 		}
 	}
 
-	pub fn parse(&mut self) -> Result<(), String> {
+	pub fn parse(&mut self) -> Result<(), CliError> {
 		
 		let args: Vec<String> = env::args().collect();
 
 		if args.is_empty() {
-			return Err("unable to get program name".to_string());
+			return Err(CliError::EmptyProgname);
 		}
 
 		// Get 'prog' from '/path/to/my/prog' and write it to CliArgs struct.
@@ -40,9 +82,7 @@ impl CliArgs {
 		self.progname.push_str(progname);
 
 		if args.len() < 2 {
-			return Err(
-				format!("not enought arguments\n{}", self.usage())
-			);
+			return Err(CliError::NotEnoughtArgs);
 		}
 
 		let mut args_i = args.into_iter().skip(1);
@@ -50,9 +90,7 @@ impl CliArgs {
 		while let Some(arg) = args_i.next() {
 			match arg.as_str() {
 				"-?" | "--help" => {
-					self.help = true;
-					self.usage();
-					return Ok(());
+					return Err(CliError::CallHelp);
 				},
 				"-c" | "--summary-only" => {
 					self.only_summary = true;
@@ -67,10 +105,8 @@ impl CliArgs {
 					self.child_args = args_i.collect();
 					break;
 				},
-				_ => {
-					return Err(
-						format!("unknown argument: \'{}\'", arg)
-					);
+				f @ _ => {
+					return Err(CliError::UnknownFlag(f.to_string()));
 				}
 			}
 		}
@@ -78,30 +114,22 @@ impl CliArgs {
 		Ok(())
 	}
 
-	pub fn validate(&mut self) -> Result<(), String> {
+	pub fn validate(&mut self) -> Result<(), CliError> {
 
 		if self.child_command.is_empty() {
-			return Err(
-				format!("empty program name!\n{}", self.usage())
-			);
+			return Err(CliError::EmptyExecutable);
 		}
 
 		// Checking given command for it is exist and executable.
 		match which::which(&self.child_command) {
 			Ok(path) => self.child_command = path,
-			Err(e) => return Err(
-				format!("[{}]: {}", self.child_command.display(), e.to_string())
-			)
+			Err(e) => return Err(CliError::ExecutableNotFound(e))
 		}
 
 		Ok(())
 	}
 
-	pub fn help(&self) -> bool {
-		self.help
-	}
-
-	fn usage(&self) -> String {
+	pub fn usage(&self) -> String {
 		format!("Usage: {} [OPTION] <binary_name> [BINARY_ARGS]", self.progname)
 	}
 }
