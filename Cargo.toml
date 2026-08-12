@@ -5,11 +5,5 @@ edition = "2024"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
-nix = {
-	version = "0.31.3",
-	features = [
-		"fs",
-		"process"
-	]
-}
+nix = { version = "0.31.3", features = ["fs", "process", "ptrace"] }
 which = "8.0.5"

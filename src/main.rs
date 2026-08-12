@@ -4,7 +4,7 @@ use shotr::run;
 
 fn main() -> ExitCode {
     if let Err(e) = run() {
-        eprintln!("{e}");
+        eprintln!("Error: {e}");
         return ExitCode::FAILURE;
     }
 

@@ -1,12 +1,11 @@
 use nix::NixPath;
 use std::{
-    env,
     error::Error,
     fmt,
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum CliError {
     // Parsing errors.
     EmptyProgname,
@@ -124,10 +123,7 @@ impl CliArgs {
         }
 
         // Checking given command for it is exist and executable.
-        match which::which(&self.child_command) {
-            Ok(path) => self.child_command = path,
-            Err(e) => return Err(CliError::ExecutableNotFound(e)),
-        }
+        self.child_command = which::which(&self.child_command)?;
 
         Ok(())
     }

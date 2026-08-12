@@ -1,8 +1,12 @@
-use std::{collections::HashMap, error::Error, fmt, path::Path};
+use std::{
+    collections::HashMap, error::Error, ffi::CString, fmt, os::unix::ffi::OsStrExt,
+    path::Path,
+};
 
-use nix::unistd::Pid;
+use nix::unistd::{self, ForkResult, Pid};
+use nix::sys::ptrace;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum TracerError {
     ForkFailed(nix::Error),
     ExecFailed,
@@ -42,7 +46,46 @@ pub struct Tracer {
 }
 
 impl Tracer {
+    fn new() -> Self {
+        Tracer {
+            children: HashMap::new(),
+        }
+    }
+
     pub fn spawn(target: &Path, args: &[String]) -> Result<Self, TracerError> {
+        // &Path not implement From<&Path> for Vec<u8> needed for new().
+        let target = target.as_os_str().as_bytes();
+        let target = CString::new(target).unwrap();
+        let args: Vec<CString> = args
+            .into_iter()
+            .map(|s| CString::new(s.as_bytes()).unwrap())
+            .collect();
+        
+        match unsafe { unistd::fork() }.map_err(|e| TracerError::ForkFailed(e))? {
+            ForkResult::Child => Self::exec_child(&target, &args),
+            ForkResult::Parent { child } => Self::init_parent(child),
+        }
+    }
+
+    fn exec_child(target: &CString, args: &[CString]) -> ! {
         todo!()
     }
+
+    fn init_parent(child: Pid) -> Result<Self, TracerError> {
+        todo!()
+    }
+}
+
+impl Iterator for Tracer {
+    type Item = Result<RawSyscallEvent, TracerError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
+
+#[rustfmt::skip]
+pub enum RawSyscallEvent {
+    Entry { pid: Pid, syscall_num: u64, raw_args: [u64; 6] },
+    Exit  { pid: Pid, retval: i64 },
+    ProcessExited { pid: Pid, code: i32 },
 }
