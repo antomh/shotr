@@ -6,23 +6,25 @@ pub mod memory;
 
 pub fn run() -> Result<(), String> {
 
-	let mut opts = cli::CliArgs::new();
-
-	if let Err(e) = opts.parse() {
-		match e {
-			cli::CliError::CallHelp => {
-				println!("{}", opts.usage());
+	let args: Vec<String> = std::env::args().collect();
+	let mut opts = match cli::CliArgs::parse(args) {
+		Ok(o) => {
+			if o.show_help == true {
+				println!("{}", o.usage());
 				return Ok(());
-			},
-			_ => return Err(format!("Error while argument parsing: {e}")),
+			}
+			o
+		},
+		Err(e) => {
+			return Err(format!("parsing error: {e}"));
 		}
-	}
+	};
 
 	if let Err(e) = opts.validate() {
 		if e == cli::CliError::EmptyExecutable {
 				println!("{}", opts.usage());
 		};
-		return Err(format!("Error while argument validating: {e}"));
+		return Err(format!("argument validating error: {e}"));
 	}
 
 	Ok(())
